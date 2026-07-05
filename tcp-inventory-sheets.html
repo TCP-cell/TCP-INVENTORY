@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>TCP.NY Inventory</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #141414; --panel: #1c1c1a; --panel-alt: #212120; --line: #33322e;
+    --ink: #f0ede4; --ink-dim: #a8a49a; --rust: #c1502e; --gold: #c9a227;
+    --green: #5a8f5f; --red: #b4483a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Oswald', -apple-system, sans-serif; padding-bottom: env(safe-area-inset-bottom); }
+  input, button { font-family: 'JetBrains Mono', monospace; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 20px 14px 60px; }
+
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 10px; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.25em; color: var(--rust); font-weight: 600; margin-bottom: 4px; }
+  h1 { margin: 0; font-size: 22px; font-weight: 700; }
+  .gear { background: none; border: 1px solid var(--line); color: var(--ink-dim); border-radius: 6px; width: 36px; height: 36px; font-size: 16px; cursor: pointer; }
+
+  .status-bar { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ink-dim); margin-bottom: 16px; font-family: 'JetBrains Mono', monospace; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-dim); }
+  .dot.ok { background: var(--green); }
+  .dot.err { background: var(--red); }
+
+  .totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-bottom: 18px; border-radius: 6px; overflow: hidden; }
+  .totals .cell { background: var(--panel); padding: 12px; text-align: center; }
+  .totals .label { font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); margin-bottom: 5px; }
+  .totals .value { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 600; }
+
+  .controls { display: flex; gap: 10px; margin-bottom: 14px; }
+  .search-box input { width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--ink); padding: 11px 12px; font-size: 13px; outline: none; border-radius: 6px; }
+  .btn-primary { background: var(--rust); color: #fff; border: none; padding: 11px 18px; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; cursor: pointer; border-radius: 6px; white-space: nowrap; }
+
+  .cards { display: flex; flex-direction: column; gap: 10px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; gap: 12px; align-items: center; }
+  .thumb { width: 56px; height: 56px; flex-shrink: 0; background: var(--panel-alt); border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--ink-dim); font-size: 18px; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .card-body { flex: 1; min-width: 0; }
+  .card-title { font-weight: 600; font-size: 15px; }
+  .card-line { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink-dim); margin-top: 3px; }
+  .pill { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 10px; margin-top: 6px; margin-right: 4px; font-family: 'JetBrains Mono', monospace; }
+  .pill.stock { background: rgba(90,143,95,0.15); color: var(--green); }
+  .pill.low { background: rgba(201,162,39,0.15); color: var(--gold); }
+  .pill.out { background: rgba(180,72,58,0.15); color: var(--red); }
+  .card-profit { text-align: right; font-family: 'JetBrains Mono', monospace; }
+  .card-profit .p-value { font-size: 15px; font-weight: 600; }
+  .card-profit .p-label { font-size: 9px; color: var(--ink-dim); text-transform: uppercase; }
+  .card-actions { display: flex; flex-direction: column; gap: 5px; }
+  .icon-btn { background: transparent; border: 1px solid var(--line); color: var(--ink-dim); cursor: pointer; padding: 5px; border-radius: 5px; font-size: 13px; width: 28px; height: 28px; }
+  .icon-btn.danger { color: var(--red); }
+
+  .empty { padding: 50px 20px; text-align: center; color: var(--ink-dim); border: 1px dashed var(--line); border-radius: 8px; }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
+  @media (min-width: 640px) { .modal-overlay { align-items: center; } }
+  .modal { background: var(--panel); border: 1px solid var(--line); width: 100%; max-width: 420px; max-height: 92vh; overflow-y: auto; padding: 20px; border-radius: 12px 12px 0 0; }
+  @media (min-width: 640px) { .modal { border-radius: 10px; } }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .modal-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
+  .close-btn { background: transparent; border: none; color: var(--ink-dim); cursor: pointer; font-size: 16px; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .field-row { display: flex; gap: 10px; }
+  .field-row .field { flex: 1; }
+  .field-label { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
+  .field input { background: var(--panel-alt); border: 1px solid var(--line); color: var(--ink); padding: 10px; font-size: 14px; outline: none; width: 100%; border-radius: 6px; }
+  .field input:focus { border-color: var(--rust); }
+
+  .photo-picker { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .photo-preview { width: 68px; height: 68px; border: 1px solid var(--line); background: var(--panel-alt); display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 8px; font-size: 20px; }
+  .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-btns { display: flex; flex-direction: column; gap: 6px; }
+  .photo-btns label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 12px; border: 1px solid var(--line); text-align: center; cursor: pointer; color: var(--ink-dim); border-radius: 6px; }
+
+  .note { font-size: 11px; color: var(--ink-dim); line-height: 1.5; background: var(--panel-alt); border: 1px solid var(--line); padding: 8px 10px; margin-bottom: 12px; border-radius: 6px; }
+  .error-text { color: var(--red); font-size: 12px; margin-bottom: 10px; }
+  .save-btn { width: 100%; background: var(--rust); color: #fff; border: none; padding: 13px; font-weight: 600; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; cursor: pointer; border-radius: 6px; }
+  .save-btn:disabled { opacity: 0.5; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="header">
+    <div>
+      <div class="eyebrow">TCP.NY</div>
+      <h1>Inventory</h1>
+    </div>
+    <button class="gear" id="settingsBtn">⚙</button>
+  </div>
+
+  <div class="status-bar">
+    <span class="dot" id="statusDot"></span>
+    <span id="statusText">Not connected to Google Sheets</span>
+  </div>
+
+  <div class="totals" id="totals"></div>
+
+  <div class="controls">
+    <div class="search-box" style="flex:1"><input id="searchInput" placeholder="Search…"></div>
+    <button class="btn-primary" id="addBtn">+ Add</button>
+  </div>
+
+  <div class="cards" id="cardList"></div>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+(function () {
+  var URL_KEY = "tcpny_sheet_url";
+  var CACHE_KEY = "tcpny_inventory_cache";
+  var scriptUrl = localStorage.getItem(URL_KEY) || "";
+  var items = [];
+  try { items = JSON.parse(localStorage.getItem(CACHE_KEY) || "[]"); } catch (e) { items = []; }
+
+  var query = "";
+  var draft = null;
+
+  function money(n) {
+    n = isFinite(n) ? n : 0;
+    return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+  }
+  function uid() { return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36); }
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"']/g, function (m) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m];
+    });
+  }
+
+  function setStatus(state, text) {
+    var dot = document.getElementById("statusDot");
+    var t = document.getElementById("statusText");
+    dot.className = "dot" + (state ? " " + state : "");
+    t.textContent = text;
+  }
+
+  function cacheItems() {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(items));
+  }
+
+  // ---- Google Sheets sync ----
+  function loadFromSheet() {
+    if (!scriptUrl) { setStatus("", "Not connected — tap ⚙ to add your Sheet link"); render(); return; }
+    setStatus("", "Syncing…");
+    fetch(scriptUrl)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        items = (data.items || []).map(function (i) {
+          return {
+            id: String(i.id), sku: i.sku, style: i.style, color: i.color, size: i.size,
+            qty: i.qty, blankPrice: i.blankPrice, salePrice: i.salePrice,
+            ssStyle: i.ssStyle, photoUrl: i.photoUrl, image: i.photoUrl || ""
+          };
+        });
+        cacheItems();
+        setStatus("ok", "Synced with Google Sheets");
+        render();
+      })
+      .catch(function () {
+        setStatus("err", "Couldn't reach Sheet — showing last saved copy");
+        render();
+      });
+  }
+
+  function postToSheet(payload) {
+    if (!scriptUrl) return Promise.resolve({ success: false });
+    return fetch(scriptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+    }).then(function (r) { return r.json(); });
+  }
+
+  function computeStats() {
+    var totalUnits = items.reduce(function (s, i) { return s + Number(i.qty || 0); }, 0);
+    var totalRetail = items.reduce(function (s, i) { return s + Number(i.qty || 0) * Number(i.salePrice || 0); }, 0);
+    var totalProfit = items.reduce(function (s, i) { return s + Number(i.qty || 0) * (Number(i.salePrice || 0) - Number(i.blankPrice || 0)); }, 0);
+    return { skuCount: items.length, totalUnits: totalUnits, totalRetail: totalRetail, totalProfit: totalProfit };
+  }
+
+  function renderTotals() {
+    var s = computeStats();
+    document.getElementById("totals").innerHTML =
+      '<div class="cell"><div class="label">SKUs / Units</div><div class="value">' + s.skuCount + ' / ' + s.totalUnits + '</div></div>' +
+      '<div class="cell"><div class="label">Retail Value</div><div class="value">' + money(s.totalRetail) + '</div></div>' +
+      '<div class="cell"><div class="label">Potential Profit</div><div class="value" style="color:' + (s.totalProfit >= 0 ? 'var(--green)' : 'var(--red)') + '">' + money(s.totalProfit) + '</div></div>';
+  }
+
+  function filteredSorted() {
+    var list = items;
+    var q = query.trim().toLowerCase();
+    if (q) list = list.filter(function (i) { return [i.sku, i.style, i.color, i.size, i.ssStyle].join(" ").toLowerCase().indexOf(q) !== -1; });
+    return list.slice().sort(function (a, b) { return (a.style || "").localeCompare(b.style || ""); });
+  }
+
+  function renderCards() {
+    var list = filteredSorted();
+    var el = document.getElementById("cardList");
+    if (list.length === 0) {
+      el.innerHTML = '<div class="empty">' + (items.length === 0 ? "No stock yet. Tap + Add to start." : "Nothing matches that search.") + '</div>';
+      return;
+    }
+    el.innerHTML = list.map(function (item) {
+      var qty = Number(item.qty || 0);
+      var blank = Number(item.blankPrice || 0);
+      var sale = Number(item.salePrice || 0);
+      var profit = sale - blank;
+      var pillClass = qty === 0 ? "out" : qty <= 5 ? "low" : "stock";
+      var pillText = qty === 0 ? "Out of stock" : qty <= 5 ? qty + " left · low" : qty + " in stock";
+      var thumb = item.image ? '<img src="' + item.image + '">' : '📦';
+      return '' +
+        '<div class="card">' +
+          '<div class="thumb">' + thumb + '</div>' +
+          '<div class="card-body">' +
+            '<div class="card-title">' + escapeHtml(item.style) + '</div>' +
+            '<div class="card-line">' + escapeHtml(item.color) + ' · ' + escapeHtml(item.size) + (item.ssStyle ? ' · S&S ' + escapeHtml(item.ssStyle) : '') + '</div>' +
+            '<span class="pill ' + pillClass + '">' + pillText + '</span>' +
+          '</div>' +
+          '<div class="card-profit">' +
+            '<div class="p-value" style="color:' + (profit >= 0 ? 'var(--green)' : 'var(--red)') + '">' + money(profit) + '</div>' +
+            '<div class="p-label">profit/unit</div>' +
+          '</div>' +
+          '<div class="card-actions">' +
+            '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">&#9998;</button>' +
+            '<button class="icon-btn danger" data-action="delete" data-id="' + item.id + '">&#128465;</button>' +
+          '</div>' +
+        '</div>';
+    }).join("");
+  }
+
+  function render() { renderTotals(); renderCards(); }
+
+  // ---- Add/Edit modal ----
+  function openModal(existing) {
+    draft = existing ? Object.assign({}, existing) : { id: null, sku: "", style: "", color: "", size: "", qty: "", blankPrice: "", salePrice: "", ssStyle: "", image: "", imageBase64: "" };
+    renderModal();
+  }
+  function closeModal() { draft = null; document.getElementById("modalRoot").innerHTML = ""; }
+
+  function renderModal(errorMsg) {
+    var root = document.getElementById("modalRoot");
+    if (!draft) { root.innerHTML = ""; return; }
+    root.innerHTML = '' +
+      '<div class="modal-overlay" id="overlay"><div class="modal">' +
+        '<div class="modal-head"><h2>' + (draft.id ? "Edit Item" : "Add Item") + '</h2><button class="close-btn" id="closeModalBtn">&#10005;</button></div>' +
+        '<div class="photo-picker">' +
+          '<div class="photo-preview">' + (draft.image ? '<img src="' + draft.image + '">' : '&#128247;') + '</div>' +
+          '<div class="photo-btns">' +
+            '<label>Take Photo<input type="file" accept="image/*" capture="environment" id="cameraInput" style="display:none"></label>' +
+            '<label>Choose Photo<input type="file" accept="image/*" id="libraryInput" style="display:none"></label>' +
+          '</div>' +
+        '</div>' +
+        '<div class="field"><div class="field-label">Style / Product Name</div><input id="f-style" value="' + escapeHtml(draft.style) + '" placeholder="e.g. Knicks Champs Tee"></div>' +
+        '<div class="field-row">' +
+          '<div class="field"><div class="field-label">Color</div><input id="f-color" value="' + escapeHtml(draft.color) + '" placeholder="Black"></div>' +
+          '<div class="field"><div class="field-label">Size</div><input id="f-size" value="' + escapeHtml(draft.size) + '" placeholder="L"></div>' +
+        '</div>' +
+        '<div class="field-row">' +
+          '<div class="field"><div class="field-label">Stock Qty</div><input id="f-qty" type="number" min="0" value="' + draft.qty + '" placeholder="0"></div>' +
+          '<div class="field"><div class="field-label">SKU (optional)</div><input id="f-sku" value="' + escapeHtml(draft.sku) + '" placeholder="auto"></div>' +
+        '</div>' +
+        '<div class="field"><div class="field-label">S&amp;S Style #</div><input id="f-ss" value="' + escapeHtml(draft.ssStyle) + '" placeholder="e.g. B00760"></div>' +
+        '<div class="field-row">' +
+          '<div class="field"><div class="field-label">Blank Cost ($)</div><input id="f-blank" type="number" min="0" step="0.01" value="' + draft.blankPrice + '" placeholder="0.00"></div>' +
+          '<div class="field"><div class="field-label">Sale Price ($)</div><input id="f-sale" type="number" min="0" step="0.01" value="' + draft.salePrice + '" placeholder="0.00"></div>' +
+        '</div>' +
+        (errorMsg ? '<div class="error-text">' + errorMsg + '</div>' : '') +
+        '<button class="save-btn" id="saveBtn">' + (draft.id ? "Save Changes" : "Add to Inventory") + '</button>' +
+      '</div></div>';
+
+    document.getElementById("overlay").addEventListener("click", function (e) { if (e.target.id === "overlay") closeModal(); });
+    document.getElementById("closeModalBtn").addEventListener("click", closeModal);
+    var map = { "f-style":"style","f-color":"color","f-size":"size","f-qty":"qty","f-sku":"sku","f-ss":"ssStyle","f-blank":"blankPrice","f-sale":"salePrice" };
+    Object.keys(map).forEach(function (id) {
+      document.getElementById(id).addEventListener("input", function (e) { draft[map[id]] = e.target.value; });
+    });
+    document.getElementById("cameraInput").addEventListener("change", handlePhoto);
+    document.getElementById("libraryInput").addEventListener("change", handlePhoto);
+    document.getElementById("saveBtn").addEventListener("click", handleSave);
+  }
+
+  function handlePhoto(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      var img = new Image();
+      img.onload = function () {
+        var maxDim = 400, w = img.width, h = img.height;
+        if (w > h && w > maxDim) { h = h * (maxDim / w); w = maxDim; }
+        else if (h > maxDim) { w = w * (maxDim / h); h = maxDim; }
+        var canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        var dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        draft.image = dataUrl;
+        draft.imageBase64 = dataUrl;
+        renderModal();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleSave() {
+    if (!draft.style.trim()) return renderModal("Style name is required.");
+    if (!draft.color.trim()) return renderModal("Color is required.");
+    if (!draft.size.trim()) return renderModal("Size is required.");
+    if (draft.qty === "" || Number(draft.qty) < 0) return renderModal("Enter a valid stock quantity.");
+    if (draft.blankPrice === "" || Number(draft.blankPrice) < 0) return renderModal("Enter a valid blank cost.");
+    if (draft.salePrice === "" || Number(draft.salePrice) < 0) return renderModal("Enter a valid sale price.");
+
+    draft.sku = draft.sku.trim() || (draft.style.slice(0,3) + "-" + draft.color.slice(0,3) + "-" + draft.size).toUpperCase().replace(/\s+/g, "");
+    var isNew = !draft.id;
+    if (isNew) draft.id = uid();
+
+    var saveBtn = document.getElementById("saveBtn");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving…";
+
+    postToSheet({ action: isNew ? "create" : "update", item: draft })
+      .then(function (res) {
+        if (isNew) items.push(Object.assign({}, draft, { photoUrl: (res && res.photoUrl) || draft.image }));
+        else items = items.map(function (i) { return i.id === draft.id ? Object.assign({}, draft, { photoUrl: (res && res.photoUrl) || draft.image }) : i; });
+        cacheItems();
+        closeModal();
+        loadFromSheet();
+      })
+      .catch(function () {
+        renderModal("Couldn't save to Sheet — check your connection.");
+      });
+  }
+
+  document.getElementById("cardList").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    var id = btn.getAttribute("data-id");
+    var action = btn.getAttribute("data-action");
+    var item = items.find(function (i) { return i.id === id; });
+    if (!item) return;
+    if (action === "edit") openModal(item);
+    if (action === "delete") {
+      if (confirm('Remove "' + item.style + '" (' + item.color + ', ' + item.size + ')?')) {
+        postToSheet({ action: "delete", id: id }).then(function () {
+          items = items.filter(function (i) { return i.id !== id; });
+          cacheItems();
+          render();
+        });
+      }
+    }
+  });
+
+  document.getElementById("addBtn").addEventListener("click", function () { openModal(null); });
+  document.getElementById("searchInput").addEventListener("input", function (e) { query = e.target.value; renderCards(); });
+
+  // ---- Settings modal (Sheet URL) ----
+  document.getElementById("settingsBtn").addEventListener("click", function () {
+    var root = document.getElementById("modalRoot");
+    root.innerHTML = '' +
+      '<div class="modal-overlay" id="settingsOverlay"><div class="modal">' +
+        '<div class="modal-head"><h2>Connect Google Sheet</h2><button class="close-btn" id="closeSettings">&#10005;</button></div>' +
+        '<div class="note">Paste the Web App URL from your Apps Script deployment (Deploy → New deployment → Web app → copy URL).</div>' +
+        '<div class="field"><div class="field-label">Web App URL</div><input id="urlInput" value="' + escapeHtml(scriptUrl) + '" placeholder="https://script.google.com/macros/s/…/exec"></div>' +
+        '<button class="save-btn" id="saveUrlBtn">Save & Sync</button>' +
+      '</div></div>';
+    document.getElementById("settingsOverlay").addEventListener("click", function (e) { if (e.target.id === "settingsOverlay") root.innerHTML = ""; });
+    document.getElementById("closeSettings").addEventListener("click", function () { root.innerHTML = ""; });
+    document.getElementById("saveUrlBtn").addEventListener("click", function () {
+      scriptUrl = document.getElementById("urlInput").value.trim();
+      localStorage.setItem(URL_KEY, scriptUrl);
+      root.innerHTML = "";
+      loadFromSheet();
+    });
+  });
+
+  render();
+  loadFromSheet();
+})();
+</script>
+
+</body>
+</html>
